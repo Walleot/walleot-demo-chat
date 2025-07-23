@@ -17,7 +17,7 @@ const fnArgsBuffers = new Map<string, FnArgsBuffer>();
 const toResponseInput = (msgs: ChatMessage[]): ResponseInput => {
   return msgs.map((m) => ({
     role: m.role as any,
-    content: [{ type: "text", text: m.content }],
+    content: m.content
   })) as unknown as ResponseInput;
 };
 
