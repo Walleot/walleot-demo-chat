@@ -4,9 +4,27 @@ import { runLLMStream } from "@/lib/llm";
 import { ReadableStream } from "stream/web";
 import { waitForUserInput } from "@/lib/elicitation";
 
+const MAX_MESSAGES = 6;
+const MAX_MESSAGE_LENGTH = 200;
+
+const systemPrompt = {
+    role: "system",
+    content: `You are a demo bot designed to showcase how Walleot payments work with MCP services. Your primary function is to generate images using your tools. Each image generation requires a payment in demo credits — no real money will be spent. If the user talks about anything else, politely guide them back to describing the image they want you to generate.`,
+};
 
 export async function POST(req: NextRequest) {
-    const { messages } = await req.json();
+    const { messages: incomingMessages } = await req.json();
+    const trimmedMessages = [
+        systemPrompt,
+        ...(incomingMessages ?? [])
+            .slice(-MAX_MESSAGES)
+            .map((msg: any) => ({
+                ...msg,
+                content: typeof msg.content === "string"
+                    ? msg.content.slice(0, MAX_MESSAGE_LENGTH)
+                    : msg.content,
+            })),
+    ];
     const encoder = new TextEncoder();
     let client: any;
 
@@ -69,7 +87,7 @@ export async function POST(req: NextRequest) {
 
 
                     await runLLMStream({
-                        messages,
+                        messages: trimmedMessages,
                         tools: toolsForOpenAI,
                         onTextDelta: (delta) => {
                             safeEnqueue(`data: ${JSON.stringify({ delta })}\n\n`);
@@ -94,7 +112,7 @@ export async function POST(req: NextRequest) {
                             const result = await client.callTool({ name, arguments: parsedArgs });
 
                             safeEnqueue(`data: ${JSON.stringify({ toolResult: result })}\n\n`);
-                            messages.push({ role: "tool", name, content: JSON.stringify(result) });
+                            //trimmedMessages.push({ role: "tool", name, content: JSON.stringify(result) });
                         },
                     });
 
