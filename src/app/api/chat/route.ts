@@ -3,6 +3,9 @@ import { getMcpClient } from "@/lib/mcpClient";
 import { runLLMStream } from "@/lib/llm";
 import { ReadableStream } from "stream/web";
 import { waitForUserInput } from "@/lib/elicitation";
+import { ChatMessage } from "@/types/chat";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Tool } from "openai/resources/responses/responses.mjs";
 
 const MAX_MESSAGES = 6;
 const MAX_MESSAGE_LENGTH = 200;
@@ -18,7 +21,7 @@ export async function POST(req: NextRequest) {
         systemPrompt,
         ...(incomingMessages ?? [])
             .slice(-MAX_MESSAGES)
-            .map((msg: any) => ({
+            .map((msg: ChatMessage) => ({
                 ...msg,
                 content: typeof msg.content === "string"
                     ? msg.content.slice(0, MAX_MESSAGE_LENGTH)
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
             })),
     ];
     const encoder = new TextEncoder();
-    let client: any;
+    let client : Client;
 
     const stream = new ReadableStream({
         start(controller) {
@@ -88,7 +91,7 @@ export async function POST(req: NextRequest) {
 
                     await runLLMStream({
                         messages: trimmedMessages,
-                        tools: toolsForOpenAI,
+                        tools: toolsForOpenAI as Tool[],
                         onTextDelta: (delta) => {
                             safeEnqueue(`data: ${JSON.stringify({ delta })}\n\n`);
                         },
@@ -109,7 +112,7 @@ export async function POST(req: NextRequest) {
                                 }
                             }
 
-                            const result = await client.callTool({ name, arguments: parsedArgs });
+                            const result = await client.callTool({ name:name as string, arguments: parsedArgs });
 
                             safeEnqueue(`data: ${JSON.stringify({ toolResult: result })}\n\n`);
                             //trimmedMessages.push({ role: "tool", name, content: JSON.stringify(result) });

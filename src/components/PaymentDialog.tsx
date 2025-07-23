@@ -1,10 +1,11 @@
 "use client";
 
+import { PaymentElicitation } from "@/types/elicitattion";
 import { useState } from "react";
 
 interface PaymentDialogProps {
-    elicitation: any;
-    setElicitation: (val: any) => void;
+    elicitation: PaymentElicitation | null;
+    setElicitation: (val: PaymentElicitation | null) => void;
 }
 
 export const PaymentDialog = ({ elicitation, setElicitation }: PaymentDialogProps) => {

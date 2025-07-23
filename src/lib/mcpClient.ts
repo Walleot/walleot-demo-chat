@@ -1,9 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { ElicitRequest, ElicitRequestSchema, ElicitResult } from "@modelcontextprotocol/sdk/types.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 
-export async function getMcpClient({elicitationHandler}:{elicitationHandler:(req:any)=>any}) {
+export async function getMcpClient({elicitationHandler}:{elicitationHandler:(req:ElicitRequest)=>Promise<ElicitResult>}): Promise<Client> {
 
     const url = process.env.MCP_TOOL_URL!;
     const transport = new StreamableHTTPClientTransport(new URL(url));

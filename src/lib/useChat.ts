@@ -1,11 +1,13 @@
 "use client";
 
+import { ChatMessage, ToolResult } from "@/types/chat";
+import { PaymentElicitation } from "@/types/elicitattion";
 import { useState, useRef } from "react";
 
 export function useChat() {
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [status, setStatus] = useState<"ready" | "processing" | "error">("ready");
-    const [elicitation, setElicitation] = useState<any>(null);
+    const [elicitation, setElicitation] = useState<PaymentElicitation | null>(null);
     const assistantBufferRef = useRef<string>("");
     const controllerRef = useRef<AbortController | null>(null);
 
@@ -46,7 +48,7 @@ export function useChat() {
                 if (!raw.startsWith("data:")) continue;
                 const jsonStr = raw.slice(5).trim();
                 if (!jsonStr) continue;
-                let payload: any;
+                let payload;
                 try {
                     payload = JSON.parse(jsonStr);
                 } catch {
@@ -64,7 +66,7 @@ export function useChat() {
                 // tool result received
                 if (payload.toolResult) {
                     console.log("payload.toolResult",payload.toolResult)
-                    const newmessages=payload.toolResult?.content?.map((c:any)=>({role:"assistant",type:c.type, data: c.data, content:c.content || c.text}))
+                    const newmessages=payload.toolResult?.content?.map((c:ToolResult)=>({role:"assistant",type:c.type, data: c.data, content:c.content || c.text}))
                     console.log("new mess",newmessages)
                     setMessages((m) => [...m, ...newmessages]);
                     continue;
@@ -99,7 +101,7 @@ export function useChat() {
                         const updated = [...m];
                         const last = updated[updated.length - 1];
                         if (last && last.role === "assistant") {
-                            updated[updated.length - 1] = { role: 'assistant', ...updated[updated.length - 1], content: last.content || lbuf};
+                            updated[updated.length - 1] = { ...updated[updated.length - 1], content: last.content || lbuf};
                         }
                         return updated;
                     });
