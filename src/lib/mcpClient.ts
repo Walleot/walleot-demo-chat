@@ -22,7 +22,7 @@ export async function getMcpClient({elicitationHandler}:{elicitationHandler:(req
 
         return mcpClient;
     } catch (err) {
-        console.log("Error connecting to MCP", err, url);
+        console.error("Error connecting to MCP", err, url);
         throw err;
     }
 }

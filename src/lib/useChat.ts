@@ -51,24 +51,20 @@ export function useChat() {
                 return;
             }
 
-            console.log("payload", payload);
 
             if (payload.elicitation) {
                 setElicitation(payload.elicitation);
-                console.log("setting elicitation", payload.elicitation);
                 return;
             }
 
             // tool result received
             if (payload.toolResult) {
-                console.log("payload.toolResult", payload.toolResult);
                 const newmessages = payload.toolResult?.content?.map((c: ToolResult) => ({
                     role: "assistant",
                     type: c.type,
                     data: c.data,
                     content: c.content || (c as any).text,
                 }));
-                console.log("new mess", newmessages);
                 setMessages((m) => [...m, ...newmessages]);
                 return;
             }
@@ -135,7 +131,6 @@ export function useChat() {
             }
 
             const chunk = decoder.decode(value, { stream: true });
-            console.log("chunk received", chunk);
 
             // accumulate and only parse full SSE frames
             sseBufferRef.current += chunk;

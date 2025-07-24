@@ -86,7 +86,6 @@ export async function POST(req: NextRequest) {
                         description: t.description,
                         parameters: t.inputSchema,
                     }));
-                    // console.log("tools",toolsForOpenAI)
 
 
                     await runLLMStream({
@@ -128,7 +127,7 @@ export async function POST(req: NextRequest) {
                     clearInterval(heartbeat);
                 } catch (e: any) {
                     console.error(e);
-                    safeEnqueue(`event: error\ndata: ${JSON.stringify({ error: e.message })}\n\n`);
+                    safeEnqueue(`data: ${JSON.stringify({ error: e.message })}\n\n`);
                     controller.close();
                     client.close();
                     closed = true;
