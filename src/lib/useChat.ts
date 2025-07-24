@@ -10,6 +10,7 @@ export function useChat() {
     const [elicitation, setElicitation] = useState<PaymentElicitation | null>(null);
     const assistantBufferRef = useRef<string>("");
     const controllerRef = useRef<AbortController | null>(null);
+    const sseBufferRef = useRef<string>("");
 
     async function send(text: string) {
         setStatus("processing");
@@ -38,81 +39,113 @@ export function useChat() {
         const reader = res.body!.getReader();
         const decoder = new TextDecoder();
 
+        // Helper to process a single SSE event block
+        const processEvent = (raw: string) => {
+            if (!raw.startsWith("data:")) return;
+            const jsonStr = raw.slice(5).trim();
+            if (!jsonStr) return;
+            let payload: any;
+            try {
+                payload = JSON.parse(jsonStr);
+            } catch {
+                return;
+            }
+
+            console.log("payload", payload);
+
+            if (payload.elicitation) {
+                setElicitation(payload.elicitation);
+                console.log("setting elicitation", payload.elicitation);
+                return;
+            }
+
+            // tool result received
+            if (payload.toolResult) {
+                console.log("payload.toolResult", payload.toolResult);
+                const newmessages = payload.toolResult?.content?.map((c: ToolResult) => ({
+                    role: "assistant",
+                    type: c.type,
+                    data: c.data,
+                    content: c.content || (c as any).text,
+                }));
+                console.log("new mess", newmessages);
+                setMessages((m) => [...m, ...newmessages]);
+                return;
+            }
+
+            // delta text
+            if (payload.delta !== undefined) {
+                assistantBufferRef.current += payload.delta;
+                setMessages((m) => {
+                    const last = m[m.length - 1];
+                    if (last && last.role === "assistant" && (last as any)._streaming) {
+                        const updated = [...m];
+                        updated[updated.length - 1] = {
+                            ...last,
+                            content: assistantBufferRef.current,
+                            _streaming: true,
+                        } as any;
+                        return updated;
+                    }
+                    return [
+                        ...m,
+                        { role: "assistant", content: assistantBufferRef.current, _streaming: true } as any,
+                    ];
+                });
+                return;
+            }
+
+            // completion
+            if (payload.done) {
+                const lbuf = assistantBufferRef.current;
+                setMessages((m) => {
+                    const updated = [...m];
+                    const last = updated[updated.length - 1];
+                    if (last && last.role === "assistant") {
+                        updated[updated.length - 1] = {
+                            ...updated[updated.length - 1],
+                            content: (last as any).content || lbuf,
+                            _streaming: undefined,
+                        } as any;
+                    }
+                    return updated;
+                });
+                setStatus("ready");
+                assistantBufferRef.current = "";
+                return;
+            }
+
+            // any other service-related data
+            setMessages((m) => [...m, { role: "assistant", content: payload } as any]);
+        };
+
         while (true) {
             const { value, done } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value);
-            console.log("chunk received", chunk)
-            // parse SSE chunks like 'data: {...}\n\n'
-            const lines = chunk.split("\n\n").filter(Boolean);
-            for (const raw of lines) {
-                if (!raw.startsWith("data:")) continue;
-                const jsonStr = raw.slice(5).trim();
-                if (!jsonStr) continue;
-                let payload;
-                try {
-                    payload = JSON.parse(jsonStr);
-                } catch {
-                    continue;
+
+            if (done) {
+                // flush whatever is left in the buffer as final complete events
+                if (sseBufferRef.current) {
+                    const leftover = sseBufferRef.current.split("\n\n").filter(Boolean);
+                    for (const raw of leftover) {
+                        processEvent(raw);
+                    }
+                    sseBufferRef.current = "";
                 }
+                break;
+            }
 
-                console.log("payload", payload)
+            const chunk = decoder.decode(value, { stream: true });
+            console.log("chunk received", chunk);
 
-                if (payload.elicitation) {
-                    setElicitation(payload.elicitation);
-                    console.log("setting elicitation",payload.elicitation)
-                    continue;
-                }
+            // accumulate and only parse full SSE frames
+            sseBufferRef.current += chunk;
 
-                // tool result received
-                if (payload.toolResult) {
-                    console.log("payload.toolResult",payload.toolResult)
-                    const newmessages=payload.toolResult?.content?.map((c:ToolResult)=>({role:"assistant",type:c.type, data: c.data, content:c.content || c.text}))
-                    console.log("new mess",newmessages)
-                    setMessages((m) => [...m, ...newmessages]);
-                    continue;
-                }
+            // split by double-newline, last piece might be incomplete, keep it in the buffer
+            const parts = sseBufferRef.current.split("\n\n");
+            sseBufferRef.current = parts.pop() ?? "";
 
-                // delta text
-                if (payload.delta !== undefined) {
-                    assistantBufferRef.current += payload.delta;
-                    setMessages((m) => {
-                        const last = m[m.length - 1];
-                        if (last && last.role === "assistant" && last._streaming) {
-                            const updated = [...m];
-                            updated[updated.length - 1] = {
-                                ...last,
-                                content: assistantBufferRef.current,
-                                _streaming: true,
-                            };
-                            return updated;
-                        }
-                        return [
-                            ...m,
-                            { role: "assistant", content: assistantBufferRef.current, _streaming: true },
-                        ];
-                    });
-                    continue;
-                }
-
-                // completion
-                if (payload.done) {
-                    const lbuf=assistantBufferRef.current;
-                    setMessages((m) => {
-                        const updated = [...m];
-                        const last = updated[updated.length - 1];
-                        if (last && last.role === "assistant") {
-                            updated[updated.length - 1] = { ...updated[updated.length - 1], content: last.content || lbuf, _streaming: undefined};
-                        }
-                        return updated;
-                    });
-                    setStatus("ready");
-                    assistantBufferRef.current = "";
-                    continue;
-                }
-
-                // any other service-related data
-                setMessages((m) => [...m, { role: "assistant", content: payload }]);
+            for (const raw of parts) {
+                processEvent(raw);
             }
         }
     }
