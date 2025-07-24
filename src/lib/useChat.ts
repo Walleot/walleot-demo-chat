@@ -101,7 +101,7 @@ export function useChat() {
                         const updated = [...m];
                         const last = updated[updated.length - 1];
                         if (last && last.role === "assistant") {
-                            updated[updated.length - 1] = { ...updated[updated.length - 1], content: last.content || lbuf};
+                            updated[updated.length - 1] = { ...updated[updated.length - 1], content: last.content || lbuf, _streaming: undefined};
                         }
                         return updated;
                     });
