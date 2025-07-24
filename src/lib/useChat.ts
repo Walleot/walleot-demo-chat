@@ -42,6 +42,7 @@ export function useChat() {
             const { value, done } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value);
+            console.log("chunk received", chunk)
             // parse SSE chunks like 'data: {...}\n\n'
             const lines = chunk.split("\n\n").filter(Boolean);
             for (const raw of lines) {
