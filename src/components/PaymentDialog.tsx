@@ -46,14 +46,14 @@ export const PaymentDialog = ({ elicitation, setElicitation }: PaymentDialogProp
             onClick={cancelPayment}
         >
             <div
-                className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6 relative"
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4 p-6 relative"
                 onClick={(e) => e.stopPropagation()}
             >
                 <h2 className="text-xl font-semibold mb-4">Payment Required</h2>
                 <p className="mb-6">{elicitation?.message || "To continue, please follow the link to complete the payment"}</p>
                 <a
                     href={elicitation?.url}
-                    className="font-semibold text-blue-600 hover:text-blue-700 transition"
+                    className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 transition"
                     target="_blank"
                     onClick={()=>setClicked(true)}
                 >
@@ -64,13 +64,13 @@ export const PaymentDialog = ({ elicitation, setElicitation }: PaymentDialogProp
                 }
                 <div className="flex justify-end gap-3 pt-5">
                     <button
-                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition"
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-400 rounded hover:bg-gray-300 dark:hover:bg-gray-700 transition"
                         onClick={cancelPayment}
                     >
                         Cancel
                     </button>
                     <button
-                        className={`px-4 py-2 text-white rounded ${clicked? "bg-blue-600 hover:bg-blue-700 transition": "bg-gray-400 cursor-not-allowed"}`}
+                        className={`px-4 py-2 text-white rounded ${clicked? "bg-blue-600 hover:bg-blue-700 dark:bg-blue-800 transition": "bg-gray-400 dark:bg-gray-500 cursor-not-allowed"}`}
                         {...(clicked?{}:{title:"Please follow the link above"})}
                         onClick={confirmPayment}
                         disabled={!clicked}

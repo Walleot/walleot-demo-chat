@@ -29,7 +29,7 @@ export default function Chat() {
         ) : messages.map((m, i) => (
           <div
             key={`msg-${i}`}
-            className={`whitespace-pre-wrap p-3 rounded-lg ${m.role === 'user' ? 'bg-blue-100 text-left' : 'bg-gray-100 text-left'
+            className={`whitespace-pre-wrap p-3 rounded-lg ${m.role === 'user' ? 'bg-blue-100 dark:bg-blue-950 text-left' : 'bg-gray-100 dark:bg-gray-900 text-left'
               }`}
           >
             {typeof m.content === "string" ? m.content : JSON.stringify(m.content)}
@@ -47,9 +47,9 @@ export default function Chat() {
 
       <form
         onSubmit={onSubmit}
-        className="fixed bottom-0 w-full max-w-md mb-4 px-4 bg-white p-4 rounded-sm"
+        className="fixed bottom-0 w-full max-w-md mb-4 px-4 bg-white dark:bg-black p-4 rounded-sm"
       >
-        <div className="flex items-center border border-gray-300 rounded-lg shadow-md overflow-hidden">
+        <div className="flex items-center border border-gray-300 dark:border-gray-700 rounded-lg shadow-md overflow-hidden">
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -60,7 +60,7 @@ export default function Chat() {
           <button
             type="submit"
             disabled={status !== 'ready'}
-            className="bg-blue-500 text-white px-4 py-2 disabled:opacity-50"
+            className="bg-blue-500 dark:bg-blue-700 text-white px-4 py-2 disabled:opacity-50"
           >
             Submit
           </button>
