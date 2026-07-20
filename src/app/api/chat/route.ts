@@ -5,10 +5,13 @@ import { ReadableStream } from "stream/web";
 import { waitForUserInput } from "@/lib/elicitation";
 import { ChatMessage } from "@/types/chat";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ElicitRequest, ElicitResult } from "@modelcontextprotocol/sdk/types.js";
 import { Tool } from "openai/resources/responses/responses.mjs";
 
 const MAX_MESSAGES = 6;
 const MAX_MESSAGE_LENGTH = 200;
+const FALLBACK_GREETING = "Hello, this is the Walleot demo. Tell me what you want me to draw for you.";
+const FALLBACK_FINISHED = "Demo finished. Please start a new chat or refresh the page to try the demo again.";
 
 const systemPrompt = {
     role: "system",
@@ -17,6 +20,7 @@ const systemPrompt = {
 
 export async function POST(req: NextRequest) {
     const { messages: incomingMessages } = await req.json();
+    const userMessages = (incomingMessages ?? []).filter((msg: ChatMessage) => msg.role === "user");
     const trimmedMessages = [
         systemPrompt,
         ...(incomingMessages ?? [])
@@ -29,7 +33,7 @@ export async function POST(req: NextRequest) {
             })),
     ];
     const encoder = new TextEncoder();
-    let client : Client;
+    let client: Client | undefined;
 
     const stream = new ReadableStream({
         start(controller) {
@@ -53,28 +57,66 @@ export async function POST(req: NextRequest) {
                 }, 15000);
 
                 try {
+                    const elicitationHandler = async (req: ElicitRequest): Promise<ElicitResult> => {
+                        const messageText = req.params.message || 'Payment required'
+
+                        safeEnqueue(
+                            `data: ${JSON.stringify({
+                                elicitation: {
+                                    type: "payment",
+                                    url: req.params.paymentUrl,
+                                    payment_id: req.params.paymentId,
+                                    message: messageText,
+                                },
+                            })}\n\n`
+                        );
+
+                        const userResponse: any = await waitForUserInput(req.params.paymentId as string);
+                        if (userResponse.action === "accept") {
+                            return { action: "accept", content: userResponse.data ?? {} };
+                        } else if (userResponse.action === "decline") {
+                            return { action: "decline" };
+                        } else {
+                            return { action: "cancel" };
+                        }
+                    };
+
+                    const hasOpenAIKey = Boolean(process.env.OPENAI_API_KEY);
+
+                    if (!hasOpenAIKey) {
+                        if (userMessages.length === 1) {
+                            safeEnqueue(`data: ${JSON.stringify({ delta: FALLBACK_GREETING })}\n\n`);
+                            safeEnqueue(`data: ${JSON.stringify({ done: true })}\n\n`);
+                            controller.close();
+                            closed = true;
+                            clearInterval(heartbeat);
+                            return;
+                        }
+
+                        if (userMessages.length === 2) {
+                            client = await getMcpClient({ elicitationHandler });
+                            const prompt = String(userMessages[1]?.content ?? "").slice(0, MAX_MESSAGE_LENGTH);
+                            const result = await client.callTool({ name: "generate", arguments: { prompt } });
+                            safeEnqueue(`data: ${JSON.stringify({ toolResult: result })}\n\n`);
+                            safeEnqueue(`data: ${JSON.stringify({ done: true })}\n\n`);
+                            controller.close();
+                            await client.close();
+                            closed = true;
+                            clearInterval(heartbeat);
+                            return;
+                        }
+
+                        safeEnqueue(`data: ${JSON.stringify({ delta: FALLBACK_FINISHED })}\n\n`);
+                        safeEnqueue(`data: ${JSON.stringify({ done: true })}\n\n`);
+                        controller.close();
+                        closed = true;
+                        clearInterval(heartbeat);
+                        return;
+                    }
+
                     client = await getMcpClient({
                         elicitationHandler: async (req) => {
-                            const messageText = req.params.message || 'Payment required'
-
-                            // Send elicitation event to client
-                            safeEnqueue(
-                                `data: ${JSON.stringify({
-                                    elicitation: {
-                                        type: "payment",
-                                        url: req.params.paymentUrl,
-                                        payment_id: req.params.paymentId,
-                                        message: messageText,
-                                    },
-                                })}\n\n`
-                            );
-
-                            const userResponse: any = await waitForUserInput(req.params.paymentId as string);
-                            if (userResponse.action === "accept") {
-                                return { action: "accept", content: userResponse.data };
-                            } else {
-                                return { action: userResponse.action };
-                            }
+                            return elicitationHandler(req);
                         }
                     });
                     const availableTools = await client.listTools();
@@ -111,7 +153,7 @@ export async function POST(req: NextRequest) {
                                 }
                             }
 
-                            const result = await client.callTool({ name:name as string, arguments: parsedArgs });
+                            const result = await client!.callTool({ name:name as string, arguments: parsedArgs });
 
                             safeEnqueue(`data: ${JSON.stringify({ toolResult: result })}\n\n`);
                             //trimmedMessages.push({ role: "tool", name, content: JSON.stringify(result) });
@@ -122,14 +164,14 @@ export async function POST(req: NextRequest) {
                     safeEnqueue(`data: ${JSON.stringify({ done: true })}\n\n`);
 
                     controller.close();
-                    client.close();
+                    await client.close();
                     closed = true;
                     clearInterval(heartbeat);
                 } catch (e: any) {
                     console.error(e);
                     safeEnqueue(`data: ${JSON.stringify({ error: e.message })}\n\n`);
                     controller.close();
-                    client.close();
+                    await client?.close();
                     closed = true;
                     clearInterval(heartbeat);
                 } finally {

@@ -4,9 +4,6 @@ import OpenAI from "openai";
 import { Tool } from "openai/resources/responses/responses.mjs";
 import { ResponseInput } from "openai/resources/responses/responses.mjs";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-
-
 type FnArgsBuffer = {
     name?: string;
     chunks: string[];
@@ -49,6 +46,7 @@ export async function runLLMStream({
     onTextDelta,
     onToolCall,
 }: RunStreamOpts) {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const stream = await openai.responses.stream({
         model: "gpt-4o-mini-2024-07-18",
         input: toResponseInput(messages),
